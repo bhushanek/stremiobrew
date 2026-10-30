@@ -2,6 +2,9 @@
    a missing or empty entry falls back to English. Keep {placeholders} as they are. */
 I18N_DICTS.tr = {
   '__name': 'Türkçe',
+  'Speed': 'Hız',
+  'Playback speed': 'Oynatma hızı',
+  'This TV does not support playback speed': 'Bu TV oynatma hızının değiştirilmesini desteklemiyor',
   'Search': 'Ara',
   'Home': 'Ana Sayfa',
   'Discover': 'Keşfet',
@@ -301,3 +304,4 @@ I18N_DICTS.tr = {
   'Original': 'Orijinal',
   'Original, fill the screen or zoom': 'Orijinal, ekranı doldur veya yakınlaştır'
 };
+
