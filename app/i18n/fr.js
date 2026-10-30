@@ -2,6 +2,9 @@
    a missing or empty entry falls back to English. Keep {placeholders} as they are. */
 I18N_DICTS.fr = {
   '__name': 'Français',
+  'Speed': 'Vitesse',
+  'Playback speed': 'Vitesse de lecture',
+  'This TV does not support playback speed': 'Ce téléviseur ne prend pas en charge la vitesse de lecture',
   'Search': 'Recherche',
   'Home': 'Accueil',
   'Discover': 'Découvrir',
@@ -301,3 +304,4 @@ I18N_DICTS.fr = {
   'Original': 'Original',
   'Original, fill the screen or zoom': 'Original, remplir l’écran ou zoomer'
 };
+
