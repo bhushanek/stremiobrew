@@ -158,6 +158,7 @@ window.StremioPlayer = function (api) {
       embQ: 0, embEp: 0, embDone: false, embFails: 0, embPolling: false, fastN: 0, autoSubDone: false, embWaitOver: false, embWaitT: null,
       curAud: -1, autoAudDone: false, didResume: false, lastPush: 0, tray: null, paced: false, alt: '', altTried: false,
       playbackSpeed: speedOf(lsGet('playbackSpeed', '1')),
+      nativeSpeed: 1, speedReq: 0,
       seekFix: false, lastSeekT: -1, helperAt: 0, skips: null, prompt: null, promptIdx: 0, dismissed: {}, aspect: (function (a) { return a === 'stretch' ? 'fit' : a; })(lsGet('aspectMode', 'fit')) };
   }
   function later(f, ms) { var st = S, id = setTimeout(function () { if (S === st) f(); }, ms); st.timers.push(id); return id; }
@@ -309,11 +310,11 @@ window.StremioPlayer = function (api) {
     on('loadedmetadata', function () { applyAspect(); applyPlaybackSpeed(st.playbackSpeed, false); loadSkips(); paintMarks(); if (!st.isTrailer) { var r = resOfVideo(v.videoWidth, v.videoHeight); if (r) st.res = r; paintInfo(); } });
     on('loadeddata', tryResume); on('canplay', tryResume);
     on('loadeddata', autoAudio); on('canplay', autoAudio);
-    on('canplay', hideBuf); on('seeked', function () { hideBuf(); embPos(); seekBurst(); });
+    on('canplay', hideBuf); on('seeked', function () { hideBuf(); embPos(); seekBurst(); if (st.playbackSpeed !== 1 && isWebOSTV()) setWebOSPlaybackSpeed(st, v, st.playbackSpeed, false, true); });
     on('waiting', showBuf); on('stalled', showBuf);
     on('waiting', function () { st.hiccup = Date.now(); }); on('seeking', function () { st.hiccup = Date.now(); }); // P2P: full speed until 15 s of smooth play
     on('playing', function () { if (st.aspect !== 'fit') applyAspect(); }); on('seeked', function () { if (st.aspect !== 'fit') applyAspect(); });
-    on('play', function () { paintPP(); cls('paused', false); clearTimeout(st.pauseT); armHide(); });
+    on('play', function () { paintPP(); cls('paused', false); clearTimeout(st.pauseT); armHide(); if (st.playbackSpeed !== 1 && isWebOSTV()) setWebOSPlaybackSpeed(st, v, st.playbackSpeed, false, true); });
     on('pause', function () {
       paintPP(); hideBuf(); saveProgress(); pushLib(true);
       clearTimeout(st.pauseT); st.pauseT = later(function () { if (v.paused && st.live && st.mode !== 'tray') { cls('paused', true); showOsd(true); } }, 350);
@@ -535,13 +536,48 @@ window.StremioPlayer = function (api) {
     else openTray(id);
     armHide();
   }
+  function isWebOSTV() { return !!(window.PalmSystem || /web[\s/]?os|web0s|netcast/i.test(navigator.userAgent || '')); }
+  function setWebOSPlaybackSpeed(st, v, speed, warn, force) {
+    if (!force && st.nativeSpeed === speed) return;
+    var req = st.speedReq = (st.speedReq || 0) + 1, tries = 0, timer = null, finished = false;
+    function current() { return S === st && st.v === v && st.speedReq === req; }
+    function finish(ok) {
+      if (finished) return; finished = true; if (timer) clearTimeout(timer);
+      if (!current()) return;
+      if (ok) st.nativeSpeed = speed;
+      else if (warn) api.toast(T('This TV does not support playback speed'));
+    }
+    function send() {
+      if (!current() || finished) return;
+      var id = ''; try { id = v.mediaId || ''; } catch (e) {}
+      if (!id) {
+        if (++tries < 28) { timer = setTimeout(send, 250); return; }
+        finish(false); return;
+      }
+      if (typeof PalmServiceBridge !== 'function') { finish(false); return; }
+      var bridge;
+      try {
+        bridge = new PalmServiceBridge();
+        timer = setTimeout(function () { finish(false); }, 3000);
+        bridge.onservicecallback = function (raw) {
+          var result = null; try { result = JSON.parse(raw); } catch (e) {}
+          finish(!!(result && result.returnValue));
+        };
+        bridge.call('luna://com.webos.media/setPlayRate', JSON.stringify({ mediaId: id, playRate: speed, audioOutput: true }));
+      } catch (e) { finish(false); }
+    }
+    send();
+  }
   function applyPlaybackSpeed(speed, warn) {
     var st = S, v = st && st.v;
     if (!v) return false;
-    // LG's native webOS video pipeline does not implement HTMLMediaElement playbackRate.
-    if (speed !== 1 && (window.PalmSystem || /web[\s/]?os|web0s|netcast/i.test(navigator.userAgent || ''))) {
-      if (warn) api.toast(T('This TV does not support playback speed'));
-      return false;
+    if (isWebOSTV()) {
+      // Standard HTMLMediaElement.playbackRate is ignored by LG's app player. Try its
+      // native media pipeline service; the current rate stays selected while it responds.
+      st.playbackSpeed = speed;
+      lsPut('playbackSpeed', String(speed));
+      setWebOSPlaybackSpeed(st, v, speed, warn, false);
+      return true;
     }
     try {
       v.playbackRate = speed;
