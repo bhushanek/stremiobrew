@@ -31,6 +31,7 @@ var ICON = {
   src: svg('M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z'),
   subs: svg('M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z'),
   aud: svg('M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z'),
+  spd: svg('M12 4a8 8 0 0 0-8 8c0 1.5.42 2.9 1.14 4.1l1.46-1.46A5.98 5.98 0 0 1 6 12a6 6 0 1 1 10.71 3.68l1.46 1.46A7.96 7.96 0 0 0 20 12a8 8 0 0 0-8-8zm.75 4v4.01l2.4 2.4 1.06-1.06L14.25 11V8h-1.5z'),
   asp: svg('M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.99h18v14.02z'),
   next: svg('M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z'),
   skip: svg('M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z'),
@@ -47,6 +48,9 @@ var LANGS = { en: 'English', eng: 'English', fr: 'French', fre: 'French', fra: '
 var SUB_SIZES = [72, 80, 100, 120, 140, 160, 180], SUB_COLORS = ['#ffffff', '#ffe600', '#00e5ff'], SUB_COLOR_NAMES = ['White', 'Yellow', 'Cyan'];
 var SUB_BGS = ['0', '1', '.6'], SUB_BG_NAMES = ['None', 'Solid', 'Transparent'];
 var ASPECTS = [['fit', 'Original'], ['fill', 'Fill the screen'], ['zoom', 'Zoom']];
+var SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
+function speedOf(s) { s = parseFloat(s); return SPEEDS.indexOf(s) >= 0 ? s : 1; }
+function speedLabel(s) { return String(s) + 'x'; }
 // one canonical code per language, whatever the source uses (639-2 B/T, 639-1, BCP-47)
 var LANG_ALIAS = { en: 'eng', ar: 'ara', fr: 'fre', fra: 'fre', es: 'spa', spl: 'spa', de: 'ger', deu: 'ger', it: 'ita', pt: 'por', pob: 'por', ru: 'rus', tr: 'tur', pl: 'pol', nl: 'dut', nld: 'dut',
   sv: 'swe', he: 'heb', iw: 'heb', hi: 'hin', ja: 'jpn', ko: 'kor', zh: 'chi', zho: 'chi', ro: 'rum', ron: 'rum', el: 'gre', ell: 'gre', cs: 'cze', ces: 'cze', fa: 'per', fas: 'per',
@@ -153,6 +157,7 @@ window.StremioPlayer = function (api) {
       extSubs: [], cues: null, curSub: 'off', subDelay: 0, embTracks: null, embLoading: true, embErr: '', embN: -1,
       embQ: 0, embEp: 0, embDone: false, embFails: 0, embPolling: false, fastN: 0, autoSubDone: false, embWaitOver: false, embWaitT: null,
       curAud: -1, autoAudDone: false, didResume: false, lastPush: 0, tray: null, paced: false, alt: '', altTried: false,
+      playbackSpeed: speedOf(lsGet('playbackSpeed', '1')),
       seekFix: false, lastSeekT: -1, helperAt: 0, skips: null, prompt: null, promptIdx: 0, dismissed: {}, aspect: (function (a) { return a === 'stretch' ? 'fit' : a; })(lsGet('aspectMode', 'fit')) };
   }
   function later(f, ms) { var st = S, id = setTimeout(function () { if (S === st) f(); }, ms); st.timers.push(id); return id; }
@@ -259,6 +264,7 @@ window.StremioPlayer = function (api) {
     if (api.beforeVideo) api.beforeVideo(); // one hardware decoder: any background trailer is fully released first
     var v = document.createElement('video'); v.id = 'pVid'; v.autoplay = true;
     root.insertBefore(v, root.firstChild); st.v = v;
+    if (!applyPlaybackSpeed(st.playbackSpeed, false) && st.playbackSpeed !== 1) { st.playbackSpeed = 1; lsPut('playbackSpeed', '1'); }
     wireVideo(st, v);
     paintTitle(); buildBtns(); applyAspect();
     // a series whose episode list / next episode wasn't known yet: ask again (now and in 20 s) and add
@@ -300,7 +306,7 @@ window.StremioPlayer = function (api) {
       if (!st.live) { st.live = true; cls('live', true); later(function () { if (st.live) E.art.style.display = 'none'; }, 500); }
       hideBuf(); cls('paused', false); if (!st.hiccup) st.hiccup = Date.now();
     });
-    on('loadedmetadata', function () { applyAspect(); loadSkips(); paintMarks(); if (!st.isTrailer) { var r = resOfVideo(v.videoWidth, v.videoHeight); if (r) st.res = r; paintInfo(); } });
+    on('loadedmetadata', function () { applyAspect(); applyPlaybackSpeed(st.playbackSpeed, false); loadSkips(); paintMarks(); if (!st.isTrailer) { var r = resOfVideo(v.videoWidth, v.videoHeight); if (r) st.res = r; paintInfo(); } });
     on('loadeddata', tryResume); on('canplay', tryResume);
     on('loadeddata', autoAudio); on('canplay', autoAudio);
     on('canplay', hideBuf); on('seeked', function () { hideBuf(); embPos(); seekBurst(); });
@@ -445,6 +451,7 @@ window.StremioPlayer = function (api) {
     if (!st.isTrailer && api.streams) ic('src', ICON.src, T('Sources'));
     ic('subs', ICON.subs, T('Subtitles'));
     if (!st.isTrailer) ic('aud', ICON.aud, T('Audio'));
+    ic('spd', ICON.spd, T('Speed'));
     var am = 'Fit'; for (var ai = 0; ai < ASPECTS.length; ai++) if (ASPECTS[ai][0] === st.aspect) am = ASPECTS[ai][1];
     ic('asp', ICON.asp, T(am));
     function mk(list, host) { host.innerHTML = ''; for (var i = 0; i < list.length; i++) { var d = document.createElement('div'); d.className = 'pb ' + list[i].c; d.innerHTML = list[i].h; d._base = d.className; host.appendChild(d); list[i].el = d; } }
@@ -527,6 +534,28 @@ window.StremioPlayer = function (api) {
     else if (id === 'nxt') nextAuto();
     else openTray(id);
     armHide();
+  }
+  function applyPlaybackSpeed(speed, warn) {
+    var st = S, v = st && st.v;
+    if (!v) return false;
+    // LG's native webOS video pipeline does not implement HTMLMediaElement playbackRate.
+    if (speed !== 1 && (window.PalmSystem || /web[\s/]?os|web0s|netcast/i.test(navigator.userAgent || ''))) {
+      if (warn) api.toast(T('This TV does not support playback speed'));
+      return false;
+    }
+    try {
+      v.playbackRate = speed;
+      if (Math.abs((parseFloat(v.playbackRate) || 1) - speed) > 0.01) {
+        if (warn) api.toast(T('This TV does not support playback speed'));
+        return false;
+      }
+    } catch (e) {
+      if (warn) api.toast(T('This TV does not support playback speed'));
+      return false;
+    }
+    st.playbackSpeed = speed;
+    lsPut('playbackSpeed', String(speed));
+    return true;
   }
   function toggle() { var v = S.v; if (!v) return; if (v.paused) v.play(); else v.pause(); }
   function showBuf() { var st = S; if (!st.live || !st.v || st.v.paused) return; cls('buf', true); }
@@ -1057,6 +1086,9 @@ window.StremioPlayer = function (api) {
         for (i = 0; i < ts.length; i++) t.row.push({ k: 'aud', i: i, lb: ts[i].label || ts[i].language || (T('Audio') + ' ' + (i + 1)), sub: ts[i].language && ts[i].label ? ts[i].language : '', on: i === sel });
       } catch (e2) {}
       if (!t.row.length) t.row.push({ k: 'note', lb: T('None') });
+    } else if (t.kind === 'spd') {
+      t.title = T('Playback speed');
+      for (i = 0; i < SPEEDS.length; i++) t.row.push({ k: 'spd', val: SPEEDS[i], lb: speedLabel(SPEEDS[i]), on: SPEEDS[i] === st.playbackSpeed });
     } else if (t.kind === 'eps') {
       var ss = seasons(); t.tabs = ss.list.map(function (n) { return n === 0 ? T('Specials') : T('Season {n}', { n: n }); });
       if (ss.list.indexOf(t.season) < 0) t.season = ss.list[0];
@@ -1228,6 +1260,7 @@ window.StremioPlayer = function (api) {
     else if (it.k === 'dly') { st.subDelay = it.d ? Math.round((st.subDelay + it.d) * 10) / 10 : 0; if (!it.d && st.cuesOrig) { st.cues = st.cuesOrig; st.cuesOrig = null; st.syncSt = ''; } restyle(); renderTray(false); }
     else if (it.k === 'sync') runSync();
     else if (it.k === 'aud') { setAudio(it.i); renderTray(false); }
+    else if (it.k === 'spd') { if (applyPlaybackSpeed(it.val, true)) renderTray(false); }
     else if (it.k === 'ep') { // an episode: its sources, right here
       var v = it.v; t.backIdx = t.idx; t.backTab = t.tab; t.kind = 'epsrc'; t.vid = v.id; t.streams = null; t.idx = -1; t.tab = 0; t.zone = 'row';
       t.epLabel = 'S' + v.season + ':E' + v.episode + '  ·  ' + (v.name || v.title || ''); renderTray(true);
@@ -1363,3 +1396,4 @@ window.StremioPlayer = function (api) {
   };
 };
 })();
+
