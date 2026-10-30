@@ -2,6 +2,9 @@
    a missing or empty entry falls back to English. Keep {placeholders} as they are. */
 I18N_DICTS.ar = {
   '__name': 'العربية',
+  'Speed': 'السرعة',
+  'Playback speed': 'سرعة التشغيل',
+  'This TV does not support playback speed': 'هذا التلفاز لا يدعم تغيير سرعة التشغيل',
   'Search': 'بحث',
   'Home': 'الرئيسية',
   'Discover': 'اكتشف',
@@ -411,3 +414,4 @@ I18N_DICTS.ar = {
   '{n} MB': '{n} ميغابايت',
   'Still reading the film’s subtitles: try again in a minute': 'ما زالت ترجمة الفيلم قيد القراءة: أعد المحاولة بعد دقيقة',
 };
+
